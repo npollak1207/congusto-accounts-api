@@ -107,10 +107,10 @@ def _get_supabase_user(token: str) -> dict:
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired token.")
 
-    result = supabase.table("users").select("*").eq("id", auth_user_id).single().execute()
+    result = supabase.table("users").select("*").eq("id", auth_user_id).execute()
     if not result.data:
         raise HTTPException(status_code=401, detail="User profile not found.")
-    return result.data
+    return result.data[0]
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)) -> dict:
     return _get_supabase_user(credentials.credentials)
