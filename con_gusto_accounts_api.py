@@ -230,7 +230,7 @@ async def register(body: RegisterRequest):
         user_row["organization_id"] = org_id
 
     # 4. Sign in to get real Supabase tokens
-    import time
+    import asyncio
     last_error = None
     for attempt in range(3):
         try:
@@ -244,9 +244,10 @@ async def register(body: RegisterRequest):
             break
         except Exception as e:
             last_error = e
-            time.sleep(1)
+            print(f"[register] sign_in attempt {attempt+1} failed: {e}")
+            await asyncio.sleep(1.5)
     if last_error:
-        raise HTTPException(status_code=500, detail="Account created but could not issue session.")
+        raise HTTPException(status_code=500, detail=f"Account created but sign-in failed: {str(last_error)}")
 
     return RegisterResponse(
         access_token=access_token,
