@@ -167,7 +167,7 @@ async def _do_register(body: RegisterRequest):
     role = "PROPERTY_MANAGER" if body.organization_name else body.role.upper()
     print(f"[register] resolved role={role}")
 
-    # 1. Create auth user via Supabase Auth (sign_up avoids admin rate limits)
+    # 1. Create auth user via sign_up, then auto-confirm via admin API
     try:
         auth_resp = supabase.auth.sign_up({
             "email": body.email,
@@ -184,6 +184,12 @@ async def _do_register(body: RegisterRequest):
 
     auth_user = auth_resp.user
     user_id = auth_user.id
+
+    # Auto-confirm email via admin API (avoids email confirmation requirement)
+    try:
+        supabase.auth.admin.update_user_by_id(user_id, {"email_confirm": True})
+    except Exception as e:
+        print(f"[register] email confirm warning: {e}")
 
     # 2. Upsert into public.users — always write role explicitly
     now = datetime.now(timezone.utc).isoformat()
