@@ -420,3 +420,51 @@ async def health():
 
 if __name__ == "__main__":
     uvicorn.run("con_gusto_accounts_api:app", host="0.0.0.0", port=8001, reload=True)
+
+# ---------------------------------------------------------------------------
+# POST /auth/login
+# ---------------------------------------------------------------------------
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+@app.post("/auth/login")
+async def login(body: LoginRequest):
+    try:
+        sign_in = supabase.auth.sign_in_with_password({
+            "email": body.email,
+            "password": body.password
+        })
+        user_row = supabase.table("users").select("*").eq("id", sign_in.user.id).single().execute().data
+        if not user_row:
+            raise HTTPException(status_code=404, detail="User profile not found.")
+        return {
+            "access_token": sign_in.session.access_token,
+            "refresh_token": sign_in.session.refresh_token,
+            "token_type": "bearer",
+            "user": _user_to_dict(user_row)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Invalid credentials.")
+
+# ---------------------------------------------------------------------------
+# GET /me/bootstrap  
+# ---------------------------------------------------------------------------
+
+@app.get("/me/bootstrap")
+async def bootstrap(current_user: dict = Depends(get_current_user)):
+    org = None
+    if current_user.get("organization_id"):
+        org_result = supabase.table("organizations").select("*").eq("id", current_user["organization_id"]).single().execute()
+        if org_result.data:
+            org = org_result.data
+    return {
+        "user": _user_to_dict(current_user),
+        "organization": {"id": org["id"], "name": org["name"], "slug": org["slug"]} if org else None,
+        "organization_name": org["name"] if org else None,
+        "open_jobs": 0,
+        "stats": {"open_jobs": 0, "waiting_approval_jobs": 0}
+    }
