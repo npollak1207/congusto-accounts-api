@@ -211,16 +211,22 @@ async def register(body: RegisterRequest):
 
         org_id = org_result.data[0]["id"]
 
-        supabase.table("organization_members").insert({
-            "id": str(uuid.uuid4()),
-            "organization_id": org_id,
-            "user_id": user_id,
-            "role": role.lower(),
-            "is_active": True,
-            "joined_at": now,
-        }).execute()
+        try:
+            member_result = supabase.table("organization_members").insert({
+                "id": str(uuid.uuid4()),
+                "organization_id": org_id,
+                "user_id": user_id,
+                "role": role.lower(),
+                "is_active": True,
+                "joined_at": now,
+            }).execute()
+            print(f"[register] org_member insert: {member_result.data}")
+        except Exception as e:
+            print(f"[register] org_member insert FAILED: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to create org member: {str(e)}")
 
-        supabase.table("users").update({"organization_id": org_id}).eq("id", user_id).execute()
+        update_result = supabase.table("users").update({"organization_id": org_id}).eq("id", user_id).execute()
+        print(f"[register] users update: {update_result.data}")
         user_row["organization_id"] = org_id
 
     # 4. Sign in to get real Supabase tokens
