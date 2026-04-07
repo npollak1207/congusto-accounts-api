@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import uuid
+import asyncio
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -241,7 +242,6 @@ async def _do_register(body: RegisterRequest):
         user_row["organization_id"] = org_id
 
     # 4. Sign in to get real Supabase tokens
-    import asyncio
     last_error = None
     for attempt in range(3):
         try:
