@@ -115,7 +115,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_
     return _get_supabase_user(credentials.credentials)
 
 def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
-    if current_user.get("role") not in ("property_manager", "admin"):
+    if current_user.get("role", "").upper() not in ("PROPERTY_MANAGER", "ADMIN"):
         raise HTTPException(status_code=403, detail="Admin access required.")
     return current_user
 
