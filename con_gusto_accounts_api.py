@@ -230,14 +230,22 @@ async def register(body: RegisterRequest):
         user_row["organization_id"] = org_id
 
     # 4. Sign in to get real Supabase tokens
-    try:
-        sign_in = supabase.auth.sign_in_with_password({
-            "email": body.email,
-            "password": body.password
-        })
-        access_token = sign_in.session.access_token
-        refresh_token = sign_in.session.refresh_token
-    except Exception:
+    import time
+    last_error = None
+    for attempt in range(3):
+        try:
+            sign_in = supabase.auth.sign_in_with_password({
+                "email": body.email,
+                "password": body.password
+            })
+            access_token = sign_in.session.access_token
+            refresh_token = sign_in.session.refresh_token
+            last_error = None
+            break
+        except Exception as e:
+            last_error = e
+            time.sleep(1)
+    if last_error:
         raise HTTPException(status_code=500, detail="Account created but could not issue session.")
 
     return RegisterResponse(
