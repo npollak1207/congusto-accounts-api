@@ -392,15 +392,39 @@ async def list_members(admin: dict = Depends(require_admin)):
     org_id = admin.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=404, detail="No organization found.")
-    memberships = supabase.table("organization_members").select("*, users(id, email, full_name, phone, role)").eq("organization_id", org_id).order("joined_at", desc=False).execute()
+
+    # Step 1: get memberships (no FK join — organization_members has no FK to users in schema)
+    memberships = supabase.table("organization_members") \
+        .select("user_id, role, is_active, joined_at") \
+        .eq("organization_id", org_id) \
+        .order("joined_at", desc=False) \
+        .execute()
+
+    if not memberships.data:
+        return MemberListResponse(members=[], total=0)
+
+    # Step 2: fetch user details separately
+    user_ids = [m["user_id"] for m in memberships.data]
+    users_result = supabase.table("users") \
+        .select("id, email, full_name, phone") \
+        .in_("id", user_ids) \
+        .execute()
+
+    users_map = {u["id"]: u for u in (users_result.data or [])}
+
     members = []
-    for m in memberships.data or []:
-        u = m.get("users") or {}
+    for m in memberships.data:
+        u = users_map.get(m["user_id"], {})
         members.append(MemberItem(
-            id=u.get("id", m["user_id"]), email=u.get("email", ""),
-            full_name=u.get("full_name"), role=m.get("role", u.get("role", "employee")),
-            phone=u.get("phone"), is_active=m.get("is_active", True), joined_at=m.get("joined_at", "")
+            id=m["user_id"],
+            email=u.get("email", ""),
+            full_name=u.get("full_name"),
+            role=m.get("role", "employee"),
+            phone=u.get("phone"),
+            is_active=m.get("is_active", True),
+            joined_at=m.get("joined_at", ""),
         ))
+
     return MemberListResponse(members=members, total=len(members))
 
 # ---------------------------------------------------------------------------
@@ -410,9 +434,16 @@ async def list_members(admin: dict = Depends(require_admin)):
 @app.patch("/admin/members/{member_id}", response_model=MemberItem)
 async def update_member(member_id: str, body: UpdateMemberRequest, admin: dict = Depends(require_admin)):
     org_id = admin.get("organization_id")
-    membership = supabase.table("organization_members").select("*, users(id, email, full_name, phone, role)").eq("organization_id", org_id).eq("user_id", member_id).single().execute()
+
+    # Check membership exists (no FK join)
+    membership = supabase.table("organization_members") \
+        .select("user_id, role, is_active, joined_at") \
+        .eq("organization_id", org_id) \
+        .eq("user_id", member_id) \
+        .single().execute()
     if not membership.data:
         raise HTTPException(status_code=404, detail="Member not found.")
+
     updates: dict = {}
     if body.role is not None:
         if body.role not in ("property_manager", "contractor", "employee"):
@@ -420,16 +451,37 @@ async def update_member(member_id: str, body: UpdateMemberRequest, admin: dict =
         updates["role"] = body.role
     if body.is_active is not None:
         updates["is_active"] = body.is_active
+
     if updates:
-        supabase.table("organization_members").update(updates).eq("organization_id", org_id).eq("user_id", member_id).execute()
+        supabase.table("organization_members").update(updates) \
+            .eq("organization_id", org_id).eq("user_id", member_id).execute()
         if body.role:
-            supabase.table("users").update({"role": body.role, "updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", member_id).execute()
-    updated = supabase.table("organization_members").select("*, users(id, email, full_name, phone, role)").eq("organization_id", org_id).eq("user_id", member_id).single().execute()
-    m = updated.data
-    u = m.get("users") or {}
-    return MemberItem(id=u.get("id", member_id), email=u.get("email", ""), full_name=u.get("full_name"),
-                      role=m.get("role", u.get("role", "employee")), phone=u.get("phone"),
-                      is_active=m.get("is_active", True), joined_at=m.get("joined_at", ""))
+            supabase.table("users").update({
+                "role": body.role,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }).eq("id", member_id).execute()
+
+    # Re-fetch membership and user separately
+    updated_m = supabase.table("organization_members") \
+        .select("user_id, role, is_active, joined_at") \
+        .eq("organization_id", org_id).eq("user_id", member_id) \
+        .single().execute()
+    updated_u = supabase.table("users") \
+        .select("id, email, full_name, phone") \
+        .eq("id", member_id).single().execute()
+
+    m = updated_m.data or {}
+    u = updated_u.data or {}
+
+    return MemberItem(
+        id=member_id,
+        email=u.get("email", ""),
+        full_name=u.get("full_name"),
+        role=m.get("role", "employee"),
+        phone=u.get("phone"),
+        is_active=m.get("is_active", True),
+        joined_at=m.get("joined_at", ""),
+    )
 
 # ---------------------------------------------------------------------------
 # Health
