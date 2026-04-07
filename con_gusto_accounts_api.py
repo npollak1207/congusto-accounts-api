@@ -159,6 +159,7 @@ async def register(body: RegisterRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 async def _do_register(body: RegisterRequest):
+    print(f"[register] email={body.email} org_name={repr(body.organization_name)} role={body.role}")
     if len(body.password) < 8:
         raise HTTPException(status_code=422, detail="Password must be at least 8 characters.")
 
