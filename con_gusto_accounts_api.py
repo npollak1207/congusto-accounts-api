@@ -461,10 +461,14 @@ async def bootstrap(current_user: dict = Depends(get_current_user)):
         org_result = supabase.table("organizations").select("*").eq("id", current_user["organization_id"]).single().execute()
         if org_result.data:
             org = org_result.data
+    org_data = {"id": org["id"], "name": org["name"], "slug": org["slug"]} if org else None
     return {
         "user": _user_to_dict(current_user),
-        "organization": {"id": org["id"], "name": org["name"], "slug": org["slug"]} if org else None,
+        "organization": org_data,
         "organization_name": org["name"] if org else None,
+        "workspace": org_data,
         "open_jobs": 0,
+        "open_queries": 0,
+        "unread_conversations": 0,
         "stats": {"open_jobs": 0, "waiting_approval_jobs": 0}
     }
