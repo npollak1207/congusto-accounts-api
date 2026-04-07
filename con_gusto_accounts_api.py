@@ -452,6 +452,13 @@ async def login(body: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid credentials.")
 
 # ---------------------------------------------------------------------------
+# GET /me/role
+# ---------------------------------------------------------------------------
+
+@app.get("/me/role")
+async def get_role(current_user: dict = Depends(get_current_user)):
+    return {"role": current_user.get("role", "employee")}
+
 # GET /me/bootstrap  
 # ---------------------------------------------------------------------------
 
