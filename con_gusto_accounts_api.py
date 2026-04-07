@@ -167,17 +167,18 @@ async def _do_register(body: RegisterRequest):
     role = "PROPERTY_MANAGER" if body.organization_name else body.role.upper()
     print(f"[register] resolved role={role}")
 
-    # 1. Create auth user via Supabase Auth
+    # 1. Create auth user via Supabase Auth (sign_up avoids admin rate limits)
     try:
-        auth_resp = supabase.auth.admin.create_user({
+        auth_resp = supabase.auth.sign_up({
             "email": body.email,
             "password": body.password,
-            "email_confirm": True,
-            "user_metadata": {"full_name": body.full_name, "role": role}
+            "options": {"data": {"full_name": body.full_name, "role": role}}
         })
+        if not auth_resp.user:
+            raise Exception("No user returned from sign_up")
     except Exception as e:
         msg = str(e)
-        if "already registered" in msg.lower() or "already exists" in msg.lower():
+        if "already registered" in msg.lower() or "already exists" in msg.lower() or "user already registered" in msg.lower():
             raise HTTPException(status_code=409, detail="An account with that email already exists.")
         raise HTTPException(status_code=500, detail=f"Failed to create auth user: {msg}")
 
