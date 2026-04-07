@@ -511,6 +511,32 @@ async def forgot_password(body: ForgotPasswordRequest):
     return {"message": "If that email has an account, a reset link has been sent."}
 
 # ---------------------------------------------------------------------------
+# POST /auth/refresh
+# ---------------------------------------------------------------------------
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+@app.post("/auth/refresh")
+async def refresh_token(body: RefreshRequest):
+    try:
+        result = supabase.auth.refresh_session(body.refresh_token)
+        if not result or not result.session:
+            raise HTTPException(status_code=401, detail="Invalid or expired refresh token.")
+        user_row = supabase.table("users").select("*").eq("id", result.user.id).single().execute().data
+        return {
+            "access_token": result.session.access_token,
+            "refresh_token": result.session.refresh_token,
+            "token_type": "bearer",
+            "user": _user_to_dict(user_row or {})
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[refresh] error: {e}")
+        raise HTTPException(status_code=401, detail="Token refresh failed.")
+
+# ---------------------------------------------------------------------------
 # POST /auth/login
 # ---------------------------------------------------------------------------
 
