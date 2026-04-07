@@ -440,6 +440,25 @@ async def health():
     return {"status": "ok", "service": "con-gusto-accounts"}
 
 # ---------------------------------------------------------------------------
+# POST /auth/forgot-password
+# ---------------------------------------------------------------------------
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+@app.post("/auth/forgot-password", status_code=200)
+async def forgot_password(body: ForgotPasswordRequest):
+    try:
+        supabase.auth.reset_password_email(
+            body.email,
+            options={"redirect_to": "https://congustoapp.com/reset-password"}
+        )
+    except Exception as e:
+        # Log but never expose — always return 200 so we don't reveal if email exists
+        print(f"[forgot-password] error for {body.email}: {e}")
+    return {"message": "If that email has an account, a reset link has been sent."}
+
+# ---------------------------------------------------------------------------
 # POST /auth/login
 # ---------------------------------------------------------------------------
 
