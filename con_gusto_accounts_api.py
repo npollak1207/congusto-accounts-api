@@ -147,6 +147,17 @@ def _user_to_dict(user_row: dict) -> dict:
 
 @app.post("/auth/register", response_model=RegisterResponse, status_code=201)
 async def register(body: RegisterRequest):
+    try:
+        return await _do_register(body)
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"[register] UNHANDLED ERROR: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def _do_register(body: RegisterRequest):
     if len(body.password) < 8:
         raise HTTPException(status_code=422, detail="Password must be at least 8 characters.")
 
