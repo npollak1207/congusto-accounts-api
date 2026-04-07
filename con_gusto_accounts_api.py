@@ -212,6 +212,7 @@ async def register(body: RegisterRequest):
         org_id = org_result.data[0]["id"]
 
         supabase.table("organization_members").insert({
+            "id": str(uuid.uuid4()),
             "organization_id": org_id,
             "user_id": user_id,
             "role": role.lower(),
