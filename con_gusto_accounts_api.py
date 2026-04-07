@@ -163,7 +163,9 @@ async def _do_register(body: RegisterRequest):
     if len(body.password) < 8:
         raise HTTPException(status_code=422, detail="Password must be at least 8 characters.")
 
+    # FIX: If creating a company, always force property_manager regardless of what was sent.
     role = "PROPERTY_MANAGER" if body.organization_name else body.role.upper()
+    print(f"[register] resolved role={role}")
 
     # 1. Create auth user via Supabase Auth
     try:
@@ -182,18 +184,22 @@ async def _do_register(body: RegisterRequest):
     auth_user = auth_resp.user
     user_id = auth_user.id
 
-    # 2. Upsert into public.users
+    # 2. Upsert into public.users — always write role explicitly
     now = datetime.now(timezone.utc).isoformat()
     user_row = {
         "id": user_id,
         "email": body.email,
         "full_name": body.full_name.strip(),
         "phone": body.phone,
-        "role": role.upper(),
+        "role": role,           # FIX: store resolved role (not .upper() redundantly — role is already upper)
         "created_at": now,
         "updated_at": now,
     }
     supabase.table("users").upsert(user_row).execute()
+
+    # Debug: confirm what the DB actually stored
+    db_check = supabase.table("users").select("role").eq("id", user_id).single().execute()
+    print(f"[register] role in DB after upsert: {db_check.data}")
 
     # 3. Create organization if requested
     if body.organization_name:
@@ -229,7 +235,7 @@ async def _do_register(body: RegisterRequest):
                 "id": str(uuid.uuid4()),
                 "organization_id": org_id,
                 "user_id": user_id,
-                "role": role.lower(),
+                "role": role.lower(),   # organization_members stores lowercase
                 "is_active": True,
                 "joined_at": now,
             }).execute()
@@ -238,9 +244,18 @@ async def _do_register(body: RegisterRequest):
             print(f"[register] org_member insert FAILED: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to create org member: {str(e)}")
 
-        update_result = supabase.table("users").update({"organization_id": org_id}).eq("id", user_id).execute()
+        # FIX: include role in this update so a DB trigger can't reset it
+        update_result = supabase.table("users").update({
+            "organization_id": org_id,
+            "role": role,
+            "updated_at": now,
+        }).eq("id", user_id).execute()
         print(f"[register] users update: {update_result.data}")
         user_row["organization_id"] = org_id
+
+        # Debug: confirm role survived the update
+        db_check2 = supabase.table("users").select("role, organization_id").eq("id", user_id).single().execute()
+        print(f"[register] role+org in DB after update: {db_check2.data}")
 
     # 4. Sign in to get real Supabase tokens
     last_error = None
@@ -261,10 +276,15 @@ async def _do_register(body: RegisterRequest):
     if last_error:
         raise HTTPException(status_code=500, detail=f"Account created but sign-in failed: {str(last_error)}")
 
+    # FIX: Re-fetch the user row from DB so _user_to_dict reflects what's actually stored,
+    # not the local dict which may differ if a trigger modified it.
+    fresh_user_row = supabase.table("users").select("*").eq("id", user_id).single().execute().data or user_row
+    print(f"[register] final user row role: {fresh_user_row.get('role')}")
+
     return RegisterResponse(
         access_token=access_token,
         refresh_token=refresh_token,
-        user=_user_to_dict(user_row)
+        user=_user_to_dict(fresh_user_row)
     )
 
 # ---------------------------------------------------------------------------
@@ -419,9 +439,6 @@ async def update_member(member_id: str, body: UpdateMemberRequest, admin: dict =
 async def health():
     return {"status": "ok", "service": "con-gusto-accounts"}
 
-if __name__ == "__main__":
-    uvicorn.run("con_gusto_accounts_api:app", host="0.0.0.0", port=8001, reload=True)
-
 # ---------------------------------------------------------------------------
 # POST /auth/login
 # ---------------------------------------------------------------------------
@@ -459,7 +476,8 @@ async def login(body: LoginRequest):
 async def get_role(current_user: dict = Depends(get_current_user)):
     return {"role": current_user.get("role", "employee")}
 
-# GET /me/bootstrap  
+# ---------------------------------------------------------------------------
+# GET /me/bootstrap
 # ---------------------------------------------------------------------------
 
 @app.get("/me/bootstrap")
@@ -480,3 +498,6 @@ async def bootstrap(current_user: dict = Depends(get_current_user)):
         "unread_conversations": 0,
         "stats": {"open_jobs": 0, "waiting_approval_jobs": 0}
     }
+
+if __name__ == "__main__":
+    uvicorn.run("con_gusto_accounts_api:app", host="0.0.0.0", port=8001, reload=True)
