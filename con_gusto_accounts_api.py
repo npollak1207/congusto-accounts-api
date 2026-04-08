@@ -604,7 +604,7 @@ async def bootstrap(current_user: dict = Depends(get_current_user)):
         "open_queries": 0,
         "unread_conversations": 0,
         "stats": {"open_jobs": 0, "waiting_approval_jobs": 0, "accessibleProperties": 0, "unreadNotifications": 0, "totalJobs": 0, "openJobs": 0, "assignedJobs": 0, "inProgressJobs": 0, "waitingApprovalJobs": 0, "completedJobs": 0, "openInvoices": 0, "conversations": 0, "unread_notifications": 0},
-        "generatedAt": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generatedAt": __import__("datetime").datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
         "properties": [],
         "recentJobs": [],
         "capabilities": {
