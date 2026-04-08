@@ -603,7 +603,19 @@ async def bootstrap(current_user: dict = Depends(get_current_user)):
         "open_jobs": 0,
         "open_queries": 0,
         "unread_conversations": 0,
-        "stats": {"open_jobs": 0, "waiting_approval_jobs": 0}
+        "stats": {"open_jobs": 0, "waiting_approval_jobs": 0, "accessibleProperties": 0, "unreadNotifications": 0},
+        "capabilities": {
+            "canCreateJobs": True,
+            "canAssignJobs": True,
+            "canQuoteJobs": True,
+            "canRequoteJobs": True,
+            "canRecordExpenses": True,
+            "canInvoice": True,
+            "canUploadPhotos": True,
+            "canChat": True,
+            "canViewMap": True,
+            "canManageWorkers": True if current_user.get("organization_id") else False
+        }
     }
 
 if __name__ == "__main__":
