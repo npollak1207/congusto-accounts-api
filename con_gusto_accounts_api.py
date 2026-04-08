@@ -603,7 +603,7 @@ async def bootstrap(current_user: dict = Depends(get_current_user)):
         "open_jobs": 0,
         "open_queries": 0,
         "unread_conversations": 0,
-        "stats": {"open_jobs": 0, "waiting_approval_jobs": 0, "accessibleProperties": 0, "unreadNotifications": 0},
+        "stats": {"open_jobs": 0, "waiting_approval_jobs": 0, "accessibleProperties": 0, "unreadNotifications": 0, "totalJobs": 0, "openJobs": 0, "waitingApprovalJobs": 0, "unread_notifications": 0},
         "capabilities": {
             "canCreateJobs": True,
             "canAssignJobs": True,
